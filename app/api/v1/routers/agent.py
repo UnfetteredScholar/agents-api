@@ -5,7 +5,7 @@ from bson.objectid import ObjectId
 from core.storage import storage
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
-from schemas.agent import Agent, AgentBase, AgentOut, Platform
+from schemas.agent import Agent, AgentBase, AgentOut, AgentUpdate, Platform
 from schemas.file import FileCategory, FileMetadata
 from schemas.page import Page
 
@@ -316,33 +316,261 @@ async def new_agent(
         raise HTTPException(status_code=500, detail=str(ex))
 
 
-# @router.patch("/agents/{agent_id}", response_model=AgentOut)
-# def update_agent(
-#     agent_id: str,
-#     name: str = Body(embed=True),
-#     current_user: User = Depends(get_current_active_user),
-# ) -> JSONResponse:
-#     """Updates a user's agent"""
-#     logger = getLogger(__name__ + ".update_agent")
-#     try:
-#         storage.agent_verify_record(
-#             {"_id": agent_id, "user_id": current_user.id}
-#         )
+@router.patch("/agents/{agent_id}/details_update", response_model=AgentOut)
+async def update_agent_details(agent_id: str, data: AgentUpdate) -> AgentOut:
+    f"""
+    updates an agent's details
 
-#         storage.agent_update_record(
-#             filter={"_id": agent_id, "user_id": current_user.id},
-#             update={"name": name},
-#         )
+    platforms: {Platform.list()}
+    """
+    logger = getLogger(__name__ + ".update_agent_details")
+    try:
+        update = data.model_dump(exclude_unset=True, exclude_none=True)
+        storage.agent_update_record({"_id": agent_id}, update=update)
+        agent = storage.agent_verify_record({"_id": agent_id})
+        return convert_to_agent_out(agent)
+    except HTTPException as ex:
+        logger.error(ex)
+        raise ex
+    except Exception as ex:
+        logger.error(ex)
+        raise HTTPException(status_code=500, detail=str(ex))
 
-#         return storage.agent_get_record(
-#             {"_id": agent_id, "user_id": current_user.id}
-#         )
-#     except HTTPException as ex:
-#         logger.error(ex)
-#         raise ex
-#     except Exception as ex:
-#         logger.error(ex)
-#         raise HTTPException(status_code=500, detail=str(ex))
+
+@router.patch("/agents/{agent_id}", response_model=AgentOut)
+async def update_agent(
+    agent_id: str,
+    # name: Optional[str] = Form(default=None),
+    # description: Optional[str] = Form(default=None),
+    # platforms: Optional[List[str]] = Form(
+    #     default=None, description=f"Options: {Platform.list()}"
+    # ),
+    # api_keys_required: Optional[List[str]] = Form(
+    #     default=None, description=f"Options: {Platform.list()}"
+    # ),
+    metadata: Optional[UploadFile] = None,
+    logo: Optional[UploadFile] = None,
+    instructions: Optional[UploadFile] = None,
+    pa_web_agent_package: Optional[UploadFile] = None,
+    pa_web_agent_dependencies: Optional[UploadFile] = None,
+    pa_desk_agent_package: Optional[UploadFile] = None,
+    pa_desk_agent_dependencies: Optional[UploadFile] = None,
+    uipath_agent_package: Optional[UploadFile] = None,
+    uipath_agent_dependencies: Optional[UploadFile] = None,
+) -> AgentOut:
+    f"""
+    Adds a new agent for a logged in user
+
+    platforms: {Platform.list()}
+    """
+    logger = getLogger(__name__ + ".update_agent")
+    try:
+        agent = storage.agent_verify_record({"_id": agent_id})
+
+        # update = {}
+        # for k, v in [
+        #     ("name", name),
+        #     ("description", description),
+        #     ("platforms", platforms),
+        #     ("api_keys_required", api_keys_required),
+        # ]:
+        #     if v is not None and v is not [] and v != "":
+        #         update[k] = v
+
+        # storage.agent_update_record(filter={"_id": agent_id}, update=update)
+
+        if metadata:
+            try:
+                storage.file_delete_record(
+                    {"agent_id": agent_id, "category": FileCategory.METADATA}
+                )
+            except Exception:
+                pass
+            storage.file_create_record(
+                data=await metadata.read(),
+                file_data=FileMetadata(
+                    filename=metadata.filename,
+                    agent_id=agent_id,
+                    category=FileCategory.METADATA,
+                    restrict_access=False,
+                ),
+            )
+            logger.info(f"Updated metadata file for agent({agent_id})")
+
+        if logo:
+            try:
+                storage.file_delete_record(
+                    {"agent_id": agent_id, "category": FileCategory.LOGO}
+                )
+            except Exception:
+                pass
+            storage.file_create_record(
+                data=await logo.read(),
+                file_data=FileMetadata(
+                    filename=logo.filename,
+                    agent_id=agent_id,
+                    category=FileCategory.LOGO,
+                    restrict_access=False,
+                ),
+            )
+
+            logger.info(f"Updated logo file for agent({agent_id})")
+
+        if instructions:
+            try:
+                storage.file_delete_record(
+                    {
+                        "agent_id": agent_id,
+                        "category": FileCategory.INSRUCTIONS,
+                    }
+                )
+            except Exception:
+                pass
+            storage.file_create_record(
+                data=await instructions.read(),
+                file_data=FileMetadata(
+                    filename=instructions.filename,
+                    agent_id=agent_id,
+                    category=FileCategory.INSRUCTIONS,
+                    restrict_access=False,
+                ),
+            )
+
+            logger.info(f"Updated intructions file for agent({agent_id})")
+
+        if pa_web_agent_package:
+            try:
+                storage.file_delete_record(
+                    {"agent_id": agent_id, "category": FileCategory.PA_DESK_AP}
+                )
+            except Exception:
+                pass
+            storage.file_create_record(
+                data=await pa_web_agent_package.read(),
+                file_data=FileMetadata(
+                    filename=pa_web_agent_package.filename,
+                    agent_id=agent_id,
+                    category=FileCategory.PA_WEB_AP,
+                    restrict_access=False,
+                ),
+            )
+
+            logger.info(
+                f"Updated metadata power automate web agent package for agent({agent_id})"
+            )
+
+        if pa_web_agent_dependencies:
+            try:
+                storage.file_delete_record(
+                    {"agent_id": agent_id, "category": FileCategory.PA_WEB_AD}
+                )
+            except Exception:
+                pass
+            storage.file_create_record(
+                data=await pa_web_agent_dependencies.read(),
+                file_data=FileMetadata(
+                    filename=pa_web_agent_dependencies.filename,
+                    agent_id=agent_id,
+                    category=FileCategory.PA_WEB_AD,
+                    restrict_access=False,
+                ),
+            )
+
+            logger.info(
+                f"Updated power automate web dependencies file for agent({agent_id})"
+            )
+
+        if pa_desk_agent_package:
+            try:
+                storage.file_delete_record(
+                    {"agent_id": agent_id, "category": FileCategory.PA_DESK_AP}
+                )
+            except Exception:
+                pass
+            storage.file_create_record(
+                data=await pa_desk_agent_package.read(),
+                file_data=FileMetadata(
+                    filename=pa_desk_agent_package.filename,
+                    agent_id=agent_id,
+                    category=FileCategory.PA_DESK_AP,
+                    restrict_access=False,
+                ),
+            )
+
+            logger.info(
+                f"Updated metadata power automate desk agent package for agent({agent_id})"
+            )
+
+        if pa_desk_agent_dependencies:
+            try:
+                storage.file_delete_record(
+                    {"agent_id": agent_id, "category": FileCategory.PA_DESK_AD}
+                )
+            except Exception:
+                pass
+            storage.file_create_record(
+                data=await pa_desk_agent_dependencies.read(),
+                file_data=FileMetadata(
+                    filename=pa_desk_agent_dependencies.filename,
+                    agent_id=agent_id,
+                    category=FileCategory.PA_DESK_AD,
+                    restrict_access=False,
+                ),
+            )
+
+            logger.info(
+                f"Updated metadata power automate desk agent dependencies for agent({agent_id})"
+            )
+
+        if uipath_agent_package:
+            try:
+                storage.file_delete_record(
+                    {"agent_id": agent_id, "category": FileCategory.UIPATH_AP}
+                )
+            except Exception:
+                pass
+            storage.file_create_record(
+                data=await uipath_agent_package.read(),
+                file_data=FileMetadata(
+                    filename=uipath_agent_package.filename,
+                    agent_id=agent_id,
+                    category=FileCategory.UIPATH_AP,
+                    restrict_access=False,
+                ),
+            )
+
+            logger.info(
+                f"Updated metadata uipath agent package for agent({agent_id})"
+            )
+
+        if uipath_agent_dependencies:
+            try:
+                storage.file_delete_record(
+                    {"agent_id": agent_id, "category": FileCategory.UIPATH_AD}
+                )
+            except Exception:
+                pass
+            storage.file_create_record(
+                data=await uipath_agent_dependencies.read(),
+                file_data=FileMetadata(
+                    filename=uipath_agent_dependencies.filename,
+                    agent_id=agent_id,
+                    category=FileCategory.UIPATH_AD,
+                    restrict_access=False,
+                ),
+            )
+            logger.info(
+                f"Updated metadata uipath agent dependencies for agent({agent_id})"
+            )
+
+        agent = storage.agent_verify_record({"_id": agent_id})
+        return convert_to_agent_out(agent)
+    except HTTPException as ex:
+        logger.error(ex)
+        raise ex
+    except Exception as ex:
+        logger.error(ex)
+        raise HTTPException(status_code=500, detail=str(ex))
 
 
 @router.delete("/agents/{agent_id}", response_model=Dict[str, str])

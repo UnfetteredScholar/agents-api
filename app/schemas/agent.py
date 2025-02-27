@@ -57,3 +57,10 @@ class AgentOut(Agent):
     pa_desk_agent_dependencies: Optional[str] = None
     uipath_agent_package: Optional[str] = None
     uipath_agent_dependencies: Optional[str] = None
+
+
+class AgentUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    platforms: Optional[List[Platform]] = None
+    api_keys_required: Optional[List[str]] = None
