@@ -4,6 +4,7 @@ from typing import List, Literal, Optional
 
 from pydantic import AliasChoices, BaseModel, Field
 from schemas.base import PyObjectID
+from schemas.file import File
 
 AgentstrKey = Literal[
     "metadata",
@@ -48,15 +49,15 @@ class Agent(AgentBase):
 
 
 class AgentOut(Agent):
-    metadata: Optional[str] = None
-    logo: Optional[str] = None
-    instructions: Optional[str] = None
-    pa_web_agent_package: Optional[str] = None
-    pa_web_agent_dependencies: Optional[str] = None
-    pa_desk_agent_package: Optional[str] = None
-    pa_desk_agent_dependencies: Optional[str] = None
-    uipath_agent_package: Optional[str] = None
-    uipath_agent_dependencies: Optional[str] = None
+    metadata: Optional[File] = None
+    logo: Optional[File] = None
+    instructions: Optional[File] = None
+    pa_web_agent_package: Optional[File] = None
+    pa_web_agent_dependencies: Optional[File] = None
+    pa_desk_agent_package: Optional[File] = None
+    pa_desk_agent_dependencies: Optional[File] = None
+    uipath_agent_package: Optional[File] = None
+    uipath_agent_dependencies: Optional[File] = None
 
 
 class AgentUpdate(BaseModel):

@@ -21,63 +21,55 @@ def convert_to_agent_out(agent_in: Agent) -> AgentOut:
             {"agent_id": agent_in.id, "category": FileCategory.METADATA}
         )
         if metadata:
-            agent_out.metadata = metadata.download_link
+            agent_out.metadata = metadata
 
         logo = storage.file_get_record(
             {"agent_id": agent_in.id, "category": FileCategory.LOGO}
         )
         if logo:
-            agent_out.logo = logo.download_link
+            agent_out.logo = logo
 
         instructions = storage.file_get_record(
             {"agent_id": agent_in.id, "category": FileCategory.INSRUCTIONS}
         )
         if instructions:
-            agent_out.instructions = instructions.download_link
+            agent_out.instructions = instructions
 
         pa_web_agent_package = storage.file_get_record(
             {"agent_id": agent_in.id, "category": FileCategory.PA_WEB_AP}
         )
         if pa_web_agent_package:
-            agent_out.pa_web_agent_package = pa_web_agent_package.download_link
+            agent_out.pa_web_agent_package = pa_web_agent_package
 
         pa_web_agent_dependencies = storage.file_get_record(
             {"agent_id": agent_in.id, "category": FileCategory.PA_WEB_AD}
         )
         if pa_web_agent_dependencies:
-            agent_out.pa_web_agent_dependencies = (
-                pa_web_agent_dependencies.download_link
-            )
+            agent_out.pa_web_agent_dependencies = pa_web_agent_dependencies
 
         pa_desk_agent_package = storage.file_get_record(
             {"agent_id": agent_in.id, "category": FileCategory.PA_DESK_AP}
         )
         if pa_desk_agent_package:
-            agent_out.pa_desk_agent_package = (
-                pa_desk_agent_package.download_link
-            )
+            agent_out.pa_desk_agent_package = pa_desk_agent_package
 
         pa_desk_agent_dependencies = storage.file_get_record(
             {"agent_id": agent_in.id, "category": FileCategory.PA_DESK_AD}
         )
         if pa_desk_agent_dependencies:
-            agent_out.pa_desk_agent_dependencies = (
-                pa_desk_agent_dependencies.download_link
-            )
+            agent_out.pa_desk_agent_dependencies = pa_desk_agent_dependencies
 
         uipath_agent_package = storage.file_get_record(
             {"agent_id": agent_in.id, "category": FileCategory.UIPATH_AP}
         )
         if uipath_agent_package:
-            agent_out.uipath_agent_package = uipath_agent_package.download_link
+            agent_out.uipath_agent_package = uipath_agent_package
 
         uipath_agent_dependencies = storage.file_get_record(
             {"agent_id": agent_in.id, "category": FileCategory.UIPATH_AD}
         )
         if uipath_agent_dependencies:
-            agent_out.uipath_agent_dependencies = (
-                uipath_agent_dependencies.download_link
-            )
+            agent_out.uipath_agent_dependencies = uipath_agent_dependencies
 
         return agent_out
 
