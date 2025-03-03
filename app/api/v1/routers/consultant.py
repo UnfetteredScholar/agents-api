@@ -12,6 +12,7 @@ from schemas.consultant import (
 )
 from schemas.file import FileMetadata
 from schemas.page import Page
+from schemas.review import Review, ReviewBase, ReviewIn, TargetType
 
 router = APIRouter()
 
@@ -231,3 +232,29 @@ def delete_consultant(
         if type(ex) is not HTTPException:
             raise HTTPException(status_code=500, detail=str(ex))
         raise ex
+
+
+@router.post(path="/consultants/{consultant_id}/review", response_model=Review)
+def review_consultant(consultant_id: str, data: ReviewIn):
+    """Adds a review/ reaction to an consultant"""
+    logger = getLogger(__name__ + ".review_consultant")
+    try:
+
+        storage.consultant_verify_record({"_id": consultant_id})
+
+        id = storage.review_create_record(
+            review_data=ReviewBase(
+                reaction=data.reaction,
+                target_id=consultant_id,
+                target_type=TargetType.CONSULTANT,
+                description=data.description,
+            )
+        )
+
+        return storage.review_verify_record({"_id": id})
+    except HTTPException as ex:
+        logger.error(ex)
+        raise ex
+    except Exception as ex:
+        logger.error(ex)
+        raise HTTPException(status_code=500, detail=str(ex))

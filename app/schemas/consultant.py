@@ -4,6 +4,7 @@ from typing import Optional
 from pydantic import AliasChoices, BaseModel, Field
 from schemas.base import PyObjectID
 from schemas.file import File
+from schemas.review import ReviewMetrics
 
 
 class ConsultantBase(BaseModel):
@@ -19,6 +20,7 @@ class ConsultantBase(BaseModel):
 
 class Consultant(ConsultantBase):
     id: PyObjectID = Field(validation_alias=AliasChoices("_id", "id"))
+    review_metrics: ReviewMetrics = ReviewMetrics()
     date_created: datetime
     date_modified: datetime
 
@@ -32,6 +34,7 @@ class ConsultantOut(BaseModel):
     resume_file: File
     expertise: str
     day_rate: float
+    review_metrics: ReviewMetrics = ReviewMetrics()
     date_created: datetime
     date_modified: datetime
 

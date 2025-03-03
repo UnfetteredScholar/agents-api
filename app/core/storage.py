@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from typing import Dict, List, Literal, Optional
+from typing import Dict, List, Optional
 
 import gridfs
 import schemas.file as s_file
@@ -9,6 +9,7 @@ from fastapi import HTTPException, status
 from pymongo import MongoClient
 from schemas import agent as s_agent
 from schemas import consultant as s_consultant
+from schemas import review as s_review
 from schemas.page import Page
 
 
@@ -396,6 +397,162 @@ class MongoStorage:
 
         for id in [consultant.resume_file_id, consultant.profile_picture_id]:
             self.file_delete_record({"_id": id})
+
+    # reviews
+    def review_create_record(
+        self,
+        review_data: s_review.ReviewBase,
+    ) -> str:
+        """Creates a review record"""
+
+        reviews_table = self.db["reviews"]
+
+        date = datetime.now(UTC)
+        review = review_data.model_dump()
+        review["date_created"] = date
+        review["date_modified"] = date
+
+        id = str(reviews_table.insert_one(review).inserted_id)
+
+        if review_data.target_type == s_review.TargetType.AGENT:
+            self.agent_advanced_update_record(
+                filter={"_id": review_data.target_id},
+                update={
+                    "$inc": {f"review_metrics.{review_data.reaction.value}": 1}
+                },
+            )
+        elif review_data.target_type == s_review.TargetType.CONSULTANT:
+            self.consultant_advanced_update_record(
+                filter={"_id": review_data.target_id},
+                update={
+                    "$inc": {f"review_metrics.{review_data.reaction.value}": 1}
+                },
+            )
+        else:
+            pass
+
+        return id
+
+    def review_get_record(self, filter: Dict) -> Optional[s_review.Review]:
+        """Gets a review record from the db using the supplied filter"""
+        reviews = self.db["reviews"]
+
+        if "_id" in filter and type(filter["_id"]) is str:
+            filter["_id"] = ObjectId(filter["_id"])
+
+        review = reviews.find_one(filter)
+
+        if review:
+            review = s_review.Review(**review)
+
+        return review
+
+    def review_get_all_records(
+        self, filter: Dict, limit: int = 0
+    ) -> List[s_review.Review]:
+        """Gets all review records from the db using the supplied filter"""
+        reviews = self.db["reviews"]
+
+        if "_id" in filter and type(filter["_id"]) is str:
+            filter["_id"] = ObjectId(filter["_id"])
+
+        reviews_list = reviews.find(filter).limit(limit=limit)
+        reviews_out = []
+
+        for review in reviews_list:
+            review = s_review.Review(**review)
+            reviews_out.append(review)
+
+        return reviews_out
+
+    def review_get_page(
+        self, filter: Dict, limit: int = 0, cursor: Optional[str] = None
+    ) -> Page[s_review.Review]:
+        """Gets a page of reviews"""
+
+        if cursor:
+            filter["_id"] = {"$gt": ObjectId(cursor)}
+
+        reviews = self.review_get_all_records(filter, limit=limit)
+
+        item_count = len(reviews)
+        next_cursor = None
+
+        if item_count > 0:
+            count_query = filter.copy()
+            count_query["_id"] = {"$gt": ObjectId(reviews[-1].id)}
+            last_item = storage.review_get_record(count_query)
+            if last_item and last_item.id != reviews[-1].id:
+                next_cursor = reviews[-1].id
+
+        reviews_page = Page(
+            items=reviews,
+            item_count=item_count,
+            next_cursor=next_cursor,
+        )
+
+        return reviews_page
+
+    def review_verify_record(self, filter: Dict) -> s_review.Review:
+        """
+        Gets a review record using the filter
+        and raises an error if a matching record is not found
+        """
+
+        review = self.review_get_record(filter)
+
+        if review is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Review not found",
+            )
+
+        return review
+
+    def review_update_record(self, filter: Dict, update: Dict):
+        """Updates a review record"""
+        self.review_verify_record(filter)
+
+        for key in ["_id", "user_id"]:
+            if key in update:
+                raise KeyError(f"Invalid Key. KEY {key} cannot be changed")
+        update["date_modified"] = datetime.now(UTC)
+
+        self.db["reviews"].update_one(filter, {"$set": update})
+
+    def review_advanced_update_record(self, filter: Dict, update: Dict):
+        """Updates a review record with more complex parameters"""
+        self.review_verify_record(filter)
+
+        if "$set" in update:
+            update["$set"]["date_modified"] = datetime.now(UTC)
+        else:
+            update["$set"] = {"date_modified": datetime.now(UTC)}
+
+        return self.db["reviews"].update_one(filter, update)
+
+    def review_delete_record(self, filter: Dict):
+        """Deletes a review record"""
+        review = self.review_verify_record(filter)
+
+        self.db["reviews"].delete_one(filter)
+
+        if review.target_type == s_review.TargetType.AGENT:
+            self.agent_advanced_update_record(
+                filter={"_id": review.target_id},
+                update={
+                    "$inc": {f"review_metrics.{review.reaction.value}": -1}
+                },
+            )
+        elif review.target_type == s_review.TargetType.CONSULTANT:
+            self.consultant_advanced_update_record(
+                filter={"_id": review.target_id},
+                update={
+                    "$inc": {f"review_metrics.{review.reaction.value}": -1}
+                },
+            )
+        else:
+            pass
 
 
 storage = MongoStorage()

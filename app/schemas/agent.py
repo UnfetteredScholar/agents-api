@@ -5,6 +5,7 @@ from typing import List, Literal, Optional
 from pydantic import AliasChoices, BaseModel, Field
 from schemas.base import PyObjectID
 from schemas.file import File
+from schemas.review import ReviewMetrics
 
 AgentstrKey = Literal[
     "metadata",
@@ -44,6 +45,7 @@ class AgentBase(BaseModel):
 
 class Agent(AgentBase):
     id: PyObjectID = Field(validation_alias=AliasChoices("_id", "id"))
+    review_metrics: ReviewMetrics = ReviewMetrics()
     date_created: datetime
     date_modified: datetime
 

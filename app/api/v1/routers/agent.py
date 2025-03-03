@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from schemas.agent import Agent, AgentBase, AgentOut, AgentUpdate, Platform
 from schemas.file import FileCategory, FileMetadata
 from schemas.page import Page
+from schemas.review import Review, ReviewBase, ReviewIn, TargetType
 
 router = APIRouter()
 
@@ -575,6 +576,32 @@ def delete_agent(
         storage.agent_delete_record({"_id": agent_id})
         message = {"message": "Agent deleted"}
         return JSONResponse(content=message)
+    except HTTPException as ex:
+        logger.error(ex)
+        raise ex
+    except Exception as ex:
+        logger.error(ex)
+        raise HTTPException(status_code=500, detail=str(ex))
+
+
+@router.post(path="/agents/{agent_id}/review", response_model=Review)
+def review_agent(agent_id: str, data: ReviewIn):
+    """Adds a review/ reaction to an agent"""
+    logger = getLogger(__name__ + ".review_agent")
+    try:
+
+        storage.agent_verify_record({"_id": agent_id})
+
+        id = storage.review_create_record(
+            review_data=ReviewBase(
+                reaction=data.reaction,
+                target_id=agent_id,
+                target_type=TargetType.AGENT,
+                description=data.description,
+            )
+        )
+
+        return storage.review_verify_record({"_id": id})
     except HTTPException as ex:
         logger.error(ex)
         raise ex
