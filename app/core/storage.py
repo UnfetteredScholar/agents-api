@@ -8,6 +8,7 @@ from core.config import settings
 from fastapi import HTTPException, status
 from pymongo import MongoClient
 from schemas import agent as s_agent
+from schemas import consultant as s_consultant
 from schemas.page import Page
 
 
@@ -77,6 +78,34 @@ class MongoStorage:
             agents_out.append(agent)
 
         return agents_out
+
+    def agent_get_page(
+        self, filter: Dict, limit: int = 0, cursor: Optional[str] = None
+    ) -> Page[s_agent.Agent]:
+        """Gets a page of agents"""
+
+        if cursor:
+            filter["_id"] = {"$gt": ObjectId(cursor)}
+
+        agents = self.agent_get_all_records(filter, limit=limit)
+
+        item_count = len(agents)
+        next_cursor = None
+
+        if item_count > 0:
+            count_query = filter.copy()
+            count_query["_id"] = {"$gt": ObjectId(agents[-1].id)}
+            last_item = storage.agent_get_record(count_query)
+            if last_item and last_item.id != agents[-1].id:
+                next_cursor = agents[-1].id
+
+        agents_page = Page(
+            items=agents,
+            item_count=item_count,
+            next_cursor=next_cursor,
+        )
+
+        return agents_page
 
     def agent_verify_record(self, filter: Dict) -> s_agent.Agent:
         """
@@ -238,6 +267,135 @@ class MongoStorage:
 
         self.db["files"].delete_one(filter)
         self.fs.delete(file_id=ObjectId(file.gridfs_id))
+
+    # consultants
+    def consultant_create_record(
+        self,
+        consultant_data: s_consultant.ConsultantBase,
+    ) -> str:
+        """Creates a consultant record"""
+
+        consultants_table = self.db["consultants"]
+
+        date = datetime.now(UTC)
+        consultant = consultant_data.model_dump()
+        consultant["date_created"] = date
+        consultant["date_modified"] = date
+
+        id = str(consultants_table.insert_one(consultant).inserted_id)
+
+        return id
+
+    def consultant_get_record(
+        self, filter: Dict
+    ) -> Optional[s_consultant.Consultant]:
+        """Gets a consultant record from the db using the supplied filter"""
+        consultants = self.db["consultants"]
+
+        if "_id" in filter and type(filter["_id"]) is str:
+            filter["_id"] = ObjectId(filter["_id"])
+
+        consultant = consultants.find_one(filter)
+
+        if consultant:
+            consultant = s_consultant.Consultant(**consultant)
+
+        return consultant
+
+    def consultant_get_all_records(
+        self, filter: Dict, limit: int = 0
+    ) -> List[s_consultant.Consultant]:
+        """Gets all consultant records from the db using the supplied filter"""
+        consultants = self.db["consultants"]
+
+        if "_id" in filter and type(filter["_id"]) is str:
+            filter["_id"] = ObjectId(filter["_id"])
+
+        consultants_list = consultants.find(filter).limit(limit=limit)
+        consultants_out = []
+
+        for consultant in consultants_list:
+            consultant = s_consultant.Consultant(**consultant)
+            consultants_out.append(consultant)
+
+        return consultants_out
+
+    def consultant_get_page(
+        self, filter: Dict, limit: int = 0, cursor: Optional[str] = None
+    ) -> Page[s_consultant.Consultant]:
+        """Gets a page of consultants"""
+
+        if cursor:
+            filter["_id"] = {"$gt": ObjectId(cursor)}
+
+        consultants = self.consultant_get_all_records(filter, limit=limit)
+
+        item_count = len(consultants)
+        next_cursor = None
+
+        if item_count > 0:
+            count_query = filter.copy()
+            count_query["_id"] = {"$gt": ObjectId(consultants[-1].id)}
+            last_item = storage.consultant_get_record(count_query)
+            if last_item and last_item.id != consultants[-1].id:
+                next_cursor = consultants[-1].id
+
+        consultants_page = Page(
+            items=consultants,
+            item_count=item_count,
+            next_cursor=next_cursor,
+        )
+
+        return consultants_page
+
+    def consultant_verify_record(
+        self, filter: Dict
+    ) -> s_consultant.Consultant:
+        """
+        Gets a consultant record using the filter
+        and raises an error if a matching record is not found
+        """
+
+        consultant = self.consultant_get_record(filter)
+
+        if consultant is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Consultant not found",
+            )
+
+        return consultant
+
+    def consultant_update_record(self, filter: Dict, update: Dict):
+        """Updates a consultant record"""
+        self.consultant_verify_record(filter)
+
+        for key in ["_id", "user_id"]:
+            if key in update:
+                raise KeyError(f"Invalid Key. KEY {key} cannot be changed")
+        update["date_modified"] = datetime.now(UTC)
+
+        self.db["consultants"].update_one(filter, {"$set": update})
+
+    def consultant_advanced_update_record(self, filter: Dict, update: Dict):
+        """Updates a consultant record with more complex parameters"""
+        self.consultant_verify_record(filter)
+
+        if "$set" in update:
+            update["$set"]["date_modified"] = datetime.now(UTC)
+        else:
+            update["$set"] = {"date_modified": datetime.now(UTC)}
+
+        return self.db["consultants"].update_one(filter, update)
+
+    def consultant_delete_record(self, filter: Dict):
+        """Deletes a consultant record"""
+        consultant = self.consultant_verify_record(filter)
+
+        self.db["consultants"].delete_one(filter)
+
+        for id in [consultant.resume_file_id, consultant.profile_picture_id]:
+            self.file_delete_record({"_id": id})
 
 
 storage = MongoStorage()

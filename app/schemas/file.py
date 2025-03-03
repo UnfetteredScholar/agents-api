@@ -20,7 +20,7 @@ class FileCategory(str, Enum):
 
 class FileMetadata(BaseModel):
     filename: str
-    agent_id: str
+    agent_id: Optional[str] = None
     category: Optional[FileCategory] = None
 
     # user_id: str
@@ -39,7 +39,7 @@ class File(BaseModel):
     id: PyObjectID = Field(validation_alias="_id")
     gridfs_id: str
     filename: str
-    agent_id: str
+    agent_id: Optional[str] = None
     category: Optional[FileCategory] = None
     # user_id: str
     # group: Optional[str] = None
