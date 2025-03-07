@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     RELEASE_ID: str = "0.1"
     API_V1_STR: str = "/api/v1"
     MONGODB_URI: str
-    DATABSE_NAME: str = "agents_service_db"
+    DATABSE_NAME: str = "agents_service_v2_db"
     ALLOWED_ORIGINS: str = "*"
     SECRET_KEY: str
     ALGORITHM: str
