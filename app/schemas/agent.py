@@ -1,23 +1,12 @@
 from datetime import datetime
 from enum import Enum
-from typing import List, Literal, Optional
+from typing import List, Optional
 
 from pydantic import AliasChoices, BaseModel, Field
 from schemas.base import PyObjectID
-from schemas.file import File
+from schemas.component import Component
+from schemas.document import Document
 from schemas.review import ReviewMetrics
-
-AgentstrKey = Literal[
-    "metadata",
-    "logo",
-    "instructions",
-    "pa_web_agent_package",
-    "pa_web_agent_dependencies",
-    "pa_desk_agent_package",
-    "pa_desk_agent_dependencies",
-    "uipath_agent_package",
-    "uipath_agent_dependencies",
-]
 
 
 class Platform(str, Enum):
@@ -31,39 +20,65 @@ class Platform(str, Enum):
         return list(map(lambda c: c.value, cls))
 
 
-class AgentData(BaseModel):
-    agent_package_id: Optional[str] = None
-    agent_dependencies_id: Optional[str] = None
-
-
-class AgentBase(BaseModel):
-    name: str
-    description: str
-    platforms: List[Platform]
-    api_keys_required: List[str]
-
-
-class Agent(AgentBase):
+class Agent(BaseModel):
     id: PyObjectID = Field(validation_alias=AliasChoices("_id", "id"))
-    review_metrics: ReviewMetrics = ReviewMetrics()
+    title: str
+    category: str
+    tagline: str
+    thumbnail_image: str
+    rating: ReviewMetrics
+    provider: str
+    description: str
+    key_features: List[str]
+    integrations: List[str]
+    pricing_model: str
+    demo_available: bool
+    related_ai_solutions: List[str]
+    platform_type: Platform
+    platform_file: str
+
+    dependencies: List[str]
+    # supporting_documents: List[str] = []
+
     date_created: datetime
     date_modified: datetime
 
 
-class AgentOut(Agent):
-    metadata: Optional[File] = None
-    logo: Optional[File] = None
-    instructions: Optional[File] = None
-    pa_web_agent_package: Optional[File] = None
-    pa_web_agent_dependencies: Optional[File] = None
-    pa_desk_agent_package: Optional[File] = None
-    pa_desk_agent_dependencies: Optional[File] = None
-    uipath_agent_package: Optional[File] = None
-    uipath_agent_dependencies: Optional[File] = None
+class AgentOut(BaseModel):
+    id: PyObjectID = Field(validation_alias=AliasChoices("_id", "id"))
+    title: str
+    category: str
+    tagline: str
+    thumbnail_image: str
+    rating: ReviewMetrics
+    provider: str
+    description: str
+    key_features: List[str]
+    integrations: List[str]
+    pricing_model: str
+    demo_available: bool
+    related_ai_solutions: List[str]
+    platform_type: Platform
+    platform_file: str
+
+    dependencies: List[Component]
+    supporting_documents: List[Document]
+
+    date_created: datetime
+    date_modified: datetime
 
 
 class AgentUpdate(BaseModel):
-    name: Optional[str] = None
+    title: Optional[str] = None
+    category: Optional[str] = None
+    tagline: Optional[str] = None
+    provider: Optional[str] = None
     description: Optional[str] = None
-    platforms: Optional[List[Platform]] = None
-    api_keys_required: Optional[List[str]] = None
+    key_features: Optional[List[str]] = None
+    integrations: Optional[List[str]] = None
+    pricing_model: Optional[str] = None
+    demo_available: Optional[bool] = None
+    related_ai_solutions: Optional[List[str]] = None
+    platform_type: Optional[Platform] = None
+
+    dependencies: Optional[List[str]] = None

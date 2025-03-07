@@ -57,6 +57,9 @@ class Settings(BaseSettings):
     MONGODB_URI: str
     DATABSE_NAME: str = "agents_service_db"
     ALLOWED_ORIGINS: str = "*"
+    SECRET_KEY: str
+    ALGORITHM: str
+    ACCESS_TOKEN_EXPIRE_DAYS: int
 
 
 settings = Settings()

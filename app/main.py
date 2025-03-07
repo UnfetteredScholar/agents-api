@@ -1,4 +1,4 @@
-from api.v1.routers import agent, consultant, file, health
+from api.v1.routers import agent, component, consultant, document, file, health
 from bson.errors import InvalidId
 from core.config import settings
 from fastapi import FastAPI, status
@@ -16,6 +16,14 @@ app.add_middleware(
 
 app.include_router(
     router=health.router, prefix=settings.API_V1_STR, tags=["health"]
+)
+
+app.include_router(
+    router=component.router, prefix=settings.API_V1_STR, tags=["component"]
+)
+
+app.include_router(
+    router=document.router, prefix=settings.API_V1_STR, tags=["document"]
 )
 
 app.include_router(

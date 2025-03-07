@@ -35,6 +35,9 @@ services:
       - ./app/:/app:rw
     environment:
       MONGODB_URI: ${MONGODB_URI}
+      SECRET_KEY: ${SECRET_KEY}
+      ALGORITHM: ${ALGORITHM}
+      ACCESS_TOKEN_EXPIRE_DAYS: ${ACCESS_TOKEN_EXPIRE_DAYS}
 
 
 volumes:

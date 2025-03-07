@@ -1,33 +1,16 @@
 from logging import getLogger
-from typing import Annotated, Dict, Optional
+from typing import Annotated, Dict, List, Optional
 
-from core.storage import storage
+from core import storage
+from core.conversion import convert_to_consultant_out
 from fastapi import APIRouter, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
-from schemas.consultant import (
-    Consultant,
-    ConsultantBase,
-    ConsultantOut,
-    ConsultantUpdate,
-)
+from schemas.consultant import Consultant, ConsultantOut, ConsultantUpdate
 from schemas.file import FileMetadata
 from schemas.page import Page
 from schemas.review import Review, ReviewBase, ReviewIn, TargetType
 
 router = APIRouter()
-
-
-def convert_to_consultant_out(input: Consultant) -> ConsultantOut:
-    """Converts form Consultant to ConsultantOut"""
-    profile_picture = storage.file_get_record(
-        {"_id": input.profile_picture_id}
-    )
-    resume_file = storage.file_get_record({"_id": input.resume_file_id})
-    data = input.model_dump()
-    data["profile_picture"] = profile_picture
-    data["resume_file"] = resume_file
-
-    return ConsultantOut(**data)
 
 
 @router.get(
@@ -42,20 +25,15 @@ def get_consultants(
     logger = getLogger(__name__ + ".get_consultants")
     try:
         filter = {}
-        consultants_page = storage.consultant_get_page(
+        consultants_page = storage.consultants.get_page(
             filter, limit=limit, cursor=cursor
         )
         items = [
             convert_to_consultant_out(con) for con in consultants_page.items
         ]
 
-        output = Page(
-            items=items,
-            item_count=consultants_page.item_count,
-            next_cursor=consultants_page.next_cursor,
-        )
-
-        return output
+        consultants_page.items = items
+        return consultants_page
     except Exception as ex:
         logger.error(ex)
         if type(ex) is not HTTPException:
@@ -74,7 +52,7 @@ def get_user_consultant(
     logger = getLogger(__name__ + ".get_user_consultant")
     try:
 
-        consultant = storage.consultant_verify_record({"_id": consultant_id})
+        consultant = storage.consultants.verify({"_id": consultant_id})
 
         return convert_to_consultant_out(consultant)
     except Exception as ex:
@@ -86,13 +64,18 @@ def get_user_consultant(
 
 @router.post("/consultants", response_model=ConsultantOut)
 async def new_consultant(
-    name: Annotated[str, Form(...)],
+    # rating: ReviewMetrics
+    title: Annotated[str, Form(...)],
+    category: Annotated[str, Form(...)],
+    tagline: Annotated[str, Form(...)],
+    provider: Annotated[str, Form(...)],
     description: Annotated[str, Form(...)],
-    role: Annotated[str, Form(...)],
-    expertise: Annotated[str, Form(...)],
+    services_offered: Annotated[List[str], Form(...)],
+    industries_served: Annotated[List[str], Form(...)],
+    related_services: Annotated[List[str], Form(...)],
     day_rate: Annotated[float, Form(...)],
-    profile_picture: UploadFile,
-    resume_file: UploadFile,
+    thumbnail_image: UploadFile,
+    resume_upload: UploadFile,
 ) -> ConsultantOut:
     """
     Adds a new human consultant
@@ -100,35 +83,38 @@ async def new_consultant(
     logger = getLogger(__name__ + ".new_consultant")
     try:
 
-        profile_picture_id = storage.file_create_record(
-            data=await profile_picture.read(),
+        data = {
+            "title": title,
+            "category": category,
+            "tagline": tagline,
+            "provider": provider,
+            "services_offered": services_offered,
+            "industries_served": industries_served,
+            "related_services": related_services,
+            "description": description,
+            "day_rate": day_rate,
+        }
+        data["rating"] = {"total_stars": 0, "review_count": 0}
+        data["dependencies"] = []
+
+        resume_upload_id = storage.files.file_create_record(
+            data=await resume_upload.read(),
             file_data=FileMetadata(
-                filename=profile_picture.filename,
-                restrict_access=False,
+                filename=resume_upload.filename,
             ),
         )
+        data["resume_upload"] = resume_upload_id
 
-        resume_file_id = storage.file_create_record(
-            data=await resume_file.read(),
+        thumbnail_image_id = storage.files.file_create_record(
+            data=await thumbnail_image.read(),
             file_data=FileMetadata(
-                filename=resume_file.filename,
-                restrict_access=False,
+                filename=thumbnail_image.filename,
             ),
         )
+        data["thumbnail_image"] = thumbnail_image_id
 
-        data = ConsultantBase(
-            profile_picture_id=profile_picture_id,
-            name=name,
-            role=role,
-            description=description,
-            resume_file_id=resume_file_id,
-            expertise=expertise,
-            day_rate=day_rate,
-        )
-
-        id = storage.consultant_create_record(data)
-
-        consultant = storage.consultant_verify_record({"_id": id})
+        id = storage.consultants.create(data=data)
+        consultant = storage.consultants.verify({"_id": id})
         return convert_to_consultant_out(consultant)
     except HTTPException as ex:
         logger.error(ex)
@@ -151,13 +137,13 @@ def update_consultant(
     try:
         update = data.model_dump(exclude_unset=True, exclude_none=True)
 
-        storage.consultant_update_record(
+        storage.consultants.update(
             filter={"_id": consultant_id},
             update=update,
         )
 
         return convert_to_consultant_out(
-            storage.consultant_verify_record({"_id": consultant_id})
+            storage.consultants.verify({"_id": consultant_id})
         )
     except Exception as ex:
         logger.error(ex)
@@ -172,40 +158,34 @@ def update_consultant(
 )
 async def update_consultant_files(
     consultant_id: str,
-    profile_picture: Optional[UploadFile] = None,
-    resume_file: Optional[UploadFile] = None,
+    thumbnail_image: Optional[UploadFile] = None,
+    resume_upload: Optional[UploadFile] = None,
 ) -> JSONResponse:
     """Updates a consultant"""
     logger = getLogger(__name__ + ".update_consultant")
     try:
+        consultant = storage.consultants.verify({"_id": consultant_id})
         update = {}
-        if profile_picture:
-            profile_picture_id = storage.file_create_record(
-                data=await profile_picture.read(),
-                file_data=FileMetadata(
-                    filename=profile_picture.filename,
-                    restrict_access=False,
-                ),
-            )
-            update["profile_picture_id"] = profile_picture_id
-        if resume_file:
-            resume_file_id = storage.file_create_record(
-                data=await resume_file.read(),
-                file_data=FileMetadata(
-                    filename=resume_file.filename,
-                    restrict_access=False,
-                ),
-            )
-            update["resume_file_id"] = resume_file_id
+        data = consultant.model_dump()
+        for file, key in [
+            (resume_upload, "resume_upload"),
+            (thumbnail_image, "thumbnail_image"),
+        ]:
+            if file is not None:
+                file_id = storage.files.file_create_record(
+                    data=await file.read(),
+                    file_data=FileMetadata(
+                        filename=file.filename,
+                    ),
+                )
+                update[key] = file_id
+                storage.files.file_delete_record({"_id": data[key]})
 
-        storage.consultant_update_record(
-            filter={"_id": consultant_id},
-            update=update,
+        storage.consultants.update(
+            filter={"_id": consultant_id}, update=update
         )
-
-        return convert_to_consultant_out(
-            storage.consultant_verify_record({"_id": consultant_id})
-        )
+        consultant = storage.consultants.verify({"_id": consultant_id})
+        return convert_to_consultant_out(consultant)
     except Exception as ex:
         logger.error(ex)
         if type(ex) is not HTTPException:
@@ -223,8 +203,7 @@ def delete_consultant(
     """Deletes a user's consultant"""
     logger = getLogger(__name__ + ".delete_consultant")
     try:
-
-        storage.consultant_delete_record({"_id": consultant_id})
+        storage.consultants.delete({"_id": consultant_id})
         message = {"message": "Consultant deleted"}
         return JSONResponse(content=message)
     except Exception as ex:
@@ -235,23 +214,31 @@ def delete_consultant(
 
 
 @router.post(path="/consultants/{consultant_id}/review", response_model=Review)
-def review_consultant(consultant_id: str, data: ReviewIn):
+def review_consultant(consultant_id: str, input: ReviewIn):
     """Adds a review/ reaction to an consultant"""
     logger = getLogger(__name__ + ".review_consultant")
     try:
 
-        storage.consultant_verify_record({"_id": consultant_id})
+        storage.consultants.verify({"_id": consultant_id})
+        data = {
+            "target_type": TargetType.CONSULTANT,
+            "target_id": consultant_id,
+            "stars": input.stars,
+            "description": input.description,
+        }
+        id = storage.reviews.create(data=data)
 
-        id = storage.review_create_record(
-            review_data=ReviewBase(
-                reaction=data.reaction,
-                target_id=consultant_id,
-                target_type=TargetType.CONSULTANT,
-                description=data.description,
-            )
+        update = {
+            "$inc": {
+                "rating.total_stars": input.stars,
+                "rating.review_count": 1,
+            }
+        }
+        storage.consultants.advanced_update(
+            filter={"_id": consultant_id}, update=update
         )
 
-        return storage.review_verify_record({"_id": id})
+        return storage.reviews.verify({"_id": id})
     except HTTPException as ex:
         logger.error(ex)
         raise ex
