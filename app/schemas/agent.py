@@ -82,3 +82,12 @@ class AgentUpdate(BaseModel):
     platform_type: Optional[Platform] = None
 
     dependencies: Optional[List[str]] = None
+
+
+class RequestAgent(BaseModel):
+    primary_goal: str
+    function_description: str
+    integrations: str
+    deployment_platform: str
+    additional_comments: str
+    company: str = ""

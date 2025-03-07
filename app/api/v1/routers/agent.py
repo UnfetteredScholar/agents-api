@@ -1,12 +1,12 @@
 from logging import getLogger
 from typing import Annotated, Dict, List, Optional
 
-from bson.objectid import ObjectId
 from core import storage
 from core.conversion import convert_to_agent_out
-from fastapi import APIRouter, Form, HTTPException, UploadFile
+from core.email import send_agent_request
+from fastapi import APIRouter, BackgroundTasks, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
-from schemas.agent import Agent, AgentOut, AgentUpdate, Platform
+from schemas.agent import Agent, AgentOut, AgentUpdate, Platform, RequestAgent
 from schemas.file import FileMetadata
 from schemas.page import Page
 from schemas.review import Review, ReviewIn, TargetType
@@ -37,6 +37,35 @@ def get_user_agents(
     except Exception as ex:
         logger.exception(ex)
         raise HTTPException(status_code=500, detail=str(ex))
+
+
+@router.post(path="/agents/agent-request", response_model=Dict[str, str])
+def send_agent_request_email(
+    details: RequestAgent, background_tasks: BackgroundTasks
+):
+    """Sends a request for a new Agent"""
+    logger = getLogger(__name__ + ".send_agent_request")
+    try:
+
+        kwargs = {
+            "primary_goal": details.primary_goal,
+            "function_description": details.function_description,
+            "integrations": details.integrations,
+            "deployment_platform": details.deployment_platform,
+            "additional_comments": details.additional_comments,
+            "company": details.company,
+        }
+        background_tasks.add_task(send_agent_request, **kwargs)
+
+        message = {"message": "Request email processing"}
+
+        return message
+
+    except Exception as ex:
+        logger.exception(ex)
+        raise HTTPException(
+            status_code=500, detail="Unable to send agent request"
+        )
 
 
 @router.get(path="/agents/{agent_id}", response_model=AgentOut)
